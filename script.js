@@ -1,23 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize IndexedDB
-    initDatabase()
-        .then(() => {
-            return loadDataFromIndexedDB();
-        })
-        .then(() => {
-            // Initialize UI after loading data
-            renderHome();
-            // Check for QR code folder parameter
-            checkUrlForFolderParam();
-        })
-        .catch(error => {
-            console.error('Error initializing app:', error);
-            // Fall back to localStorage if IndexedDB fails
-            loadFromLocalStorage();
-            renderHome();
-            checkUrlForFolderParam();
-        });
-        
     // Load QRious library instead of QRCode
     const qrScript = document.createElement('script');
     qrScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
@@ -1082,177 +1063,86 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (!currentFolderId) {
-            alert('Please select a folder first');
+            alert('Please select a folder first. Click on a folder before uploading.');
             closeAllModals();
             return;
         }
         
-        // Show progress bar
+        // Get progress elements, with null checks
+        const uploadProgress = document.querySelector('.upload-progress');
         const progressBar = document.querySelector('.progress-bar-fill');
         const progressText = document.querySelector('.progress-percentage');
-        const uploadProgress = document.querySelector('.upload-progress');
         
+        // Only try to update progress UI if elements exist
+        if (uploadProgress && progressBar && progressText) {
         uploadProgress.classList.remove('hidden');
         progressBar.style.width = '0%';
         progressText.textContent = '0%';
+        }
+        
+        // Make sure the folder's document array exists
+        if (!documentsData[currentFolderId]) {
+            documentsData[currentFolderId] = [];
+        }
         
         const files = Array.from(fileInput.files);
-        const totalFiles = files.length;
-        let uploadedFiles = 0;
-        let errors = [];
+        let processedFiles = 0;
         
-        // Process each file
-        const processNextFile = (index) => {
-            if (index >= files.length) {
-                // All files processed
-                if (errors.length > 0) {
-                    alert(`Completed with ${errors.length} errors. Some files could not be processed.`);
-                }
+        // Upload each file
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fileName = file.name;
+                const fileTitle = fileName.split('.')[0]; // Use filename as title
+                const fileExt = fileName.split('.').pop().toLowerCase();
                 
-                // Update folder meta
-                const folderIndex = foldersData.findIndex(f => f.id === currentFolderId);
-                if (folderIndex !== -1) {
-                    foldersData[folderIndex].count += uploadedFiles;
-                    foldersData[folderIndex].date = new Date().toISOString().split('T')[0];
-                    
-                    // Save updated folder
-                    saveFolder(foldersData[folderIndex])
-                        .catch(err => console.error('Error saving folder:', err));
-                }
+            // Create unique ID
+            const uniqueId = Date.now() + i; // Simple but effective for this use case
+                const newDocId = 'doc' + uniqueId;
                 
-                // Update UI
-                setTimeout(() => {
-                    closeAllModals();
-                    openFolder(currentFolderId); // Refresh current folder view
-                    
-                    // Clear form fields
-                    fileInput.value = '';
-                    document.querySelector('.file-preview').innerHTML = '';
-                }, 500);
-                return;
+                // Create new document object
+                const newDoc = {
+                    id: newDocId,
+                    title: fileTitle,
+                    version: 'v1.0',
+                    type: fileExt,
+                    size: formatFileSize(file.size),
+                    date: new Date().toISOString().split('T')[0]
+                };
+                
+                // Add to the current folder
+                documentsData[currentFolderId].push(newDoc);
+                
+            // Update progress if UI elements exist
+            if (progressBar && progressText) {
+                processedFiles++;
+                const progress = Math.floor((processedFiles / files.length) * 100);
+                progressBar.style.width = progress + '%';
+                progressText.textContent = progress + '%';
+            }
             }
             
-            const file = files[index];
-            const fileName = file.name;
-            const fileTitle = fileName.split('.')[0]; // Use filename as title
-            const fileVersion = 'v1.0'; // Default version
-            const fileExt = fileName.split('.').pop().toLowerCase();
+            // Update folder metadata
+            const folderIndex = foldersData.findIndex(f => f.id === currentFolderId);
+            if (folderIndex !== -1) {
+                foldersData[folderIndex].count = documentsData[currentFolderId].length;
+                foldersData[folderIndex].date = new Date().toISOString().split('T')[0];
+            }
             
-            // Create a new document object
-            const newDocId = 'doc' + Date.now() + index;
-            const newDoc = {
-                id: newDocId,
-                title: fileTitle,
-                version: fileVersion,
-                type: fileExt,
-                size: formatFileSize(file.size),
-                date: new Date().toISOString().split('T')[0]
-            };
+            // Save to localStorage
+            saveToLocalStorage();
             
-            // Simulate progress
-            const baseProgress = (index / totalFiles) * 100;
-            const progressInterval = setInterval(() => {
-                const randomIncrement = Math.random() * 2;
-                const fileProgress = Math.min(99, baseProgress + randomIncrement);
-                const totalProgress = Math.floor((uploadedFiles / totalFiles * 100) + (fileProgress / totalFiles));
+            // Complete the upload process
+            setTimeout(() => {
+                closeAllModals();
+                openFolder(currentFolderId); // Refresh current folder view
                 
-                progressBar.style.width = totalProgress + '%';
-                progressText.textContent = totalProgress + '%';
-            }, 100);
-            
-            // Store the file data (using FileReader)
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                clearInterval(progressInterval);
-                
-                try {
-                    // Store the file data
-                    newDoc.fileData = e.target.result;
-                    
-                    // For text files, also store content separately
-                    if (fileExt.match(/^(txt|csv|json|xml|html|css|js)$/)) {
-                        const textReader = new FileReader();
-                        textReader.onload = function(textEvent) {
-                            newDoc.textContent = textEvent.target.result;
-                            
-                            // Save to IndexedDB
-                            saveDocument(newDoc, currentFolderId)
-                                .then(() => {
-                                    // Add to in-memory data
-                                    if (!documentsData[currentFolderId]) {
-                                        documentsData[currentFolderId] = [];
-                                    }
-                                    documentsData[currentFolderId].push(newDoc);
-                                    
-                                    uploadedFiles++;
-                                    
-                                    // Update progress
-                                    const totalProgress = Math.floor(uploadedFiles / totalFiles * 100);
-                                    progressBar.style.width = totalProgress + '%';
-                                    progressText.textContent = totalProgress + '%';
-                                    
-                                    // Process next file
-                                    processNextFile(index + 1);
-                                })
-                                .catch(error => {
-                                    console.error('Error saving document:', error);
-                                    errors.push({ name: fileName, reason: 'Error saving to database' });
-                                    processNextFile(index + 1);
-                                });
-                        };
-                        
-                        textReader.onerror = function() {
-                            errors.push({ name: fileName, reason: 'Error reading text file' });
-                            processNextFile(index + 1);
-                        };
-                        
-                        textReader.readAsText(file);
-                    } else {
-                        // For non-text files
-                        saveDocument(newDoc, currentFolderId)
-                            .then(() => {
-                                // Add to in-memory data
-                                if (!documentsData[currentFolderId]) {
-                                    documentsData[currentFolderId] = [];
-                                }
-                                documentsData[currentFolderId].push(newDoc);
-                                
-                                uploadedFiles++;
-                                
-                                // Update progress
-                                const totalProgress = Math.floor(uploadedFiles / totalFiles * 100);
-                                progressBar.style.width = totalProgress + '%';
-                                progressText.textContent = totalProgress + '%';
-                                
-                                // Process next file
-                                processNextFile(index + 1);
-                            })
-                            .catch(error => {
-                                console.error('Error saving document:', error);
-                                errors.push({ name: fileName, reason: 'Error saving to database' });
-                                processNextFile(index + 1);
-                            });
-                    }
-                } catch (error) {
-                    console.error('Error processing file:', error);
-                    errors.push({ name: fileName, reason: 'Error processing file data' });
-                    processNextFile(index + 1);
-                }
-            };
-            
-            reader.onerror = function() {
-                clearInterval(progressInterval);
-                errors.push({ name: fileName, reason: 'Error reading file' });
-                processNextFile(index + 1);
-            };
-            
-            // Read the file
-            reader.readAsDataURL(file);
-        };
-        
-        // Start processing files
-        processNextFile(0);
+                // Clear form fields
+                fileInput.value = '';
+            const filePreview = document.querySelector('.file-preview');
+            if (filePreview) {
+                filePreview.innerHTML = '';
+        }
+        }, 500);
     }
 
     function handleFileSelect() {
@@ -1395,29 +1285,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function deleteDocument(docId) {
-        return new Promise((resolve, reject) => {
-            // Delete document metadata
-            const docTransaction = db.transaction(['documents'], 'readwrite');
-            const docStore = docTransaction.objectStore('documents');
-            docStore.delete(docId);
+        if (!currentFolderId) return;
+        
+        // Find the document in the current folder
+        const docIndex = documentsData[currentFolderId].findIndex(doc => doc.id === docId);
+        
+        if (docIndex !== -1) {
+            // Remove the document
+            documentsData[currentFolderId].splice(docIndex, 1);
             
-            // Delete file data
-            const fileTransaction = db.transaction(['fileData'], 'readwrite');
-            const fileStore = fileTransaction.objectStore('fileData');
-            fileStore.delete(docId);
+            // Update folder metadata
+            const folderIndex = foldersData.findIndex(f => f.id === currentFolderId);
+            if (folderIndex !== -1) {
+                foldersData[folderIndex].count--;
+                foldersData[folderIndex].date = new Date().toISOString().split('T')[0];
+            }
             
-            // Resolve when both operations complete
-            Promise.all([
-                new Promise(resolve => {
-                    docTransaction.oncomplete = resolve;
-                    docTransaction.onerror = resolve; // Still continue even if one fails
-                }),
-                new Promise(resolve => {
-                    fileTransaction.oncomplete = resolve;
-                    fileTransaction.onerror = resolve;
-                })
-            ]).then(() => resolve()).catch(() => resolve()); // Always resolve to continue the flow
-        });
+            // Save changes to localStorage
+            saveToLocalStorage();
+            
+            // Refresh the current folder view
+            openFolder(currentFolderId);
+        }
     }
 
     function showModal(modal) {
@@ -1426,6 +1315,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Show the requested modal
         modal.style.display = 'flex';
+        
+        // Ensure modals are scrollable
+        updateModalScrollability();
         
         // Add event listener to close when clicking outside
         modal.addEventListener('click', function(e) {
@@ -1467,9 +1359,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!doc) {
             alert('Document not found');
-            return;
-        }
-        
+                return;
+            }
+            
         if (doc.fileData) {
             // If we have actual file data
             const downloadLink = document.createElement('a');
@@ -1691,176 +1583,29 @@ document.addEventListener('DOMContentLoaded', function() {
     // Call this function on page load
     checkUrlForFolderParam();
 
-    if ('indexedDB' in window) {
-        // IndexedDB is supported
-    } else {
-        // IndexedDB is not supported
+    // Add this function to your script
+    function updateModalScrollability() {
+        // Find all modal content elements
+        const modalContents = document.querySelectorAll('.modal-content');
+        
+        modalContents.forEach(content => {
+            // Add max-height and overflow properties
+            content.style.maxHeight = '80vh';
+            content.style.overflowY = 'auto';
+        });
+        
+        // Specifically target the upload modal content
+        const uploadModalContent = document.querySelector('#upload-modal .modal-content');
+        if (uploadModalContent) {
+            uploadModalContent.style.maxHeight = '80vh';
+            uploadModalContent.style.overflowY = 'auto';
+            
+            // Also make sure the modal body is scrollable
+            const modalBody = uploadModalContent.querySelector('.modal-body');
+            if (modalBody) {
+                modalBody.style.maxHeight = '60vh';
+                modalBody.style.overflowY = 'auto';
+            }
+        }
     }
 });
-
-// Initialize the IndexedDB database
-function initDatabase() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('TechDocsDB', 1);
-        
-        request.onerror = event => {
-            console.error('IndexedDB error:', event.target.error);
-            reject('Could not open IndexedDB');
-        };
-        
-        request.onsuccess = event => {
-            db = event.target.result;
-            resolve(db);
-        };
-        
-        request.onupgradeneeded = event => {
-            const db = event.target.result;
-            
-            // Create object stores for our data
-            if (!db.objectStoreNames.contains('folders')) {
-                db.createObjectStore('folders', { keyPath: 'id' });
-            }
-            
-            if (!db.objectStoreNames.contains('documents')) {
-                const docStore = db.createObjectStore('documents', { keyPath: 'id' });
-                docStore.createIndex('byFolder', 'folderId', { unique: false });
-            }
-            
-            if (!db.objectStoreNames.contains('fileData')) {
-                db.createObjectStore('fileData', { keyPath: 'id' });
-            }
-        };
-    });
-}
-
-// Load data from IndexedDB
-function loadDataFromIndexedDB() {
-    return new Promise((resolve, reject) => {
-        // Reset our data structures
-        foldersData = [];
-        documentsData = {};
-        
-        // Get all folders
-        getFolders()
-            .then(folders => {
-                foldersData = folders;
-                
-                // Initialize empty document arrays for each folder
-                foldersData.forEach(folder => {
-                    documentsData[folder.id] = [];
-                });
-                
-                // Get documents for each folder
-                const promises = foldersData.map(folder => 
-                    getDocumentsByFolder(folder.id)
-                        .then(docs => {
-                            documentsData[folder.id] = docs;
-                        })
-                );
-                
-                return Promise.all(promises);
-            })
-            .then(() => resolve())
-            .catch(error => reject(error));
-    });
-}
-
-// Get all folders
-function getFolders() {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['folders'], 'readonly');
-        const store = transaction.objectStore('folders');
-        const request = store.getAll();
-        
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// Get documents by folder
-function getDocumentsByFolder(folderId) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['documents'], 'readonly');
-        const store = transaction.objectStore('documents');
-        const index = store.index('byFolder');
-        const request = index.getAll(folderId);
-        
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// Save a folder
-function saveFolder(folder) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['folders'], 'readwrite');
-        const store = transaction.objectStore('folders');
-        const request = store.put(folder);
-        
-        request.onsuccess = () => resolve(folder);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// Save a document
-function saveDocument(document, folderId) {
-    return new Promise((resolve, reject) => {
-        // Clone the document to avoid modifying the original
-        const docToSave = { ...document, folderId };
-        
-        // If it has file data, store it separately
-        let fileData = null;
-        if (docToSave.fileData) {
-            fileData = docToSave.fileData;
-            delete docToSave.fileData; // Remove from metadata
-        }
-        
-        const transaction = db.transaction(['documents'], 'readwrite');
-        const store = transaction.objectStore('documents');
-        const request = store.put(docToSave);
-        
-        request.onsuccess = () => {
-            // If we have file data, save it separately
-            if (fileData) {
-                saveFileData(document.id, fileData)
-                    .then(() => resolve(document))
-                    .catch(error => reject(error));
-            } else {
-                resolve(document);
-            }
-        };
-        
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// Save file data
-function saveFileData(docId, fileData) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['fileData'], 'readwrite');
-        const store = transaction.objectStore('fileData');
-        const request = store.put({ id: docId, data: fileData });
-        
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// Get file data
-function getFileData(docId) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['fileData'], 'readonly');
-        const store = transaction.objectStore('fileData');
-        const request = store.get(docId);
-        
-        request.onsuccess = () => {
-            if (request.result) {
-                resolve(request.result.data);
-            } else {
-                resolve(null);
-            }
-        };
-        
-        request.onerror = () => reject(request.error);
-    });
-}
