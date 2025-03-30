@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechDocs - Industrial Documentation Portal</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-container">
+        <div class="bg-circle circle1"></div>
+        <div class="bg-circle circle2"></div>
+        <div class="bg-circle circle3"></div>
+    </div>
+
+    <header>
+        <div class="logo">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-svg">
+                <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M8.5 10C9.32843 10 10 9.32843 10 8.5C10 7.67157 9.32843 7 8.5 7C7.67157 7 7 7.67157 7 8.5C7 9.32843 7.67157 10 8.5 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M21 15L16 10L5 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1>TechDocs</h1>
+        </div>
+        <nav>
+            <button id="home-btn" class="active"><i class="fas fa-home"></i> Home</button>
+            <button id="create-folder-btn"><i class="fas fa-folder-plus"></i> New Folder</button>
+            <button id="upload-btn"><i class="fas fa-upload"></i> Upload Manual</button>
+        </nav>
+    </header>
+
+    <main>
+        <div class="breadcrumbs">
+            <span class="crumb" data-path="root">Home</span>
+        </div>
+
+        <div class="search-container">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="search-input" placeholder="Search for manuals or machines...">
+            </div>
+        </div>
+
+        <div class="container" id="folders-container">
+            <!-- Folders will be dynamically added here -->
+        </div>
+
+        <div class="documents-grid" id="documents-container">
+            <!-- Documents will be dynamically added here -->
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty-state" id="empty-state">
+            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 8V16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M8 12H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h3>No content yet</h3>
+            <p>Create folders to organize your machine manuals</p>
+            <button id="empty-create-btn"><i class="fas fa-folder-plus"></i> Create First Folder</button>
+        </div>
+    </main>
+
+    <!-- Modal for password input -->
+    <div class="modal" id="password-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Authentication Required</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Please enter the admin password to continue:</p>
+                <div class="password-input">
+                    <input type="password" id="password-input" placeholder="Enter password">
+                    <i class="fas fa-eye-slash toggle-password"></i>
+                </div>
+                <div class="error-message" id="password-error"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn">Cancel</button>
+                <button class="submit-btn" id="password-submit">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for creating folder -->
+    <div class="modal" id="folder-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Folder</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="folder-name">Folder Name:</label>
+                    <input type="text" id="folder-name" placeholder="Enter machine name">
+                </div>
+                <div class="input-group">
+                    <label for="folder-description">Description (optional):</label>
+                    <textarea id="folder-description" placeholder="Brief description of this machine"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn">Cancel</button>
+                <button class="submit-btn" id="create-folder-submit">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for file upload -->
+    <div class="modal" id="upload-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Upload Manual</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="file-drop-area">
+                    <span class="file-message">Drag & drop files here or click to browse</span>
+                    <input type="file" class="file-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                    <div class="file-preview"></div>
+                </div>
+                <div class="input-group">
+                    <label for="file-title">Title:</label>
+                    <input type="text" id="file-title" placeholder="Enter document title">
+                </div>
+                <div class="input-group">
+                    <label for="file-version">Version (optional):</label>
+                    <input type="text" id="file-version" placeholder="e.g. v2.1">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn">Cancel</button>
+                <button class="submit-btn" id="upload-submit">Upload</button>
+            </div>
+        </div>
+    </div>
+    <!-- Delete Confirmation Modal -->
+    <div class="modal" id="delete-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="delete-title">Delete Item</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p id="delete-message">Are you sure you want to delete this item?</p>
+                <div class="input-group">
+                    <label for="delete-password">Please enter the admin password to confirm:</label>
+                    <div class="password-input">
+                        <input type="password" id="delete-password" placeholder="Enter password">
+                        <i class="fas fa-eye-slash toggle-password"></i>
+                    </div>
+                    <div class="error-message" id="delete-error"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn">Cancel</button>
+                <button class="delete-btn" id="delete-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for renaming items -->
+    <div class="modal" id="rename-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="rename-title">Rename Item</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="rename-input">New Name:</label>
+                    <input type="text" id="rename-input" placeholder="Enter new name">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn">Cancel</button>
+                <button class="submit-btn" id="rename-confirm">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Modal -->
+    <div class="modal" id="qr-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Folder QR Code</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <div id="qrcode-container"></div>
+                <p id="qr-folder-name" style="margin-top: 10px; font-weight: 500;"></p>
+                <p style="color: var(--gray-500); margin-top: 5px;">Scan this QR code to open the folder directly</p>
+            </div>
+            <div class="modal-footer">
+                <button class="submit-btn" id="download-qr">Download QR Code</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
